@@ -43,6 +43,9 @@ export default function ImageAnnotator() {
     textColor: '#ffffff',
     fontSize: 12,
     showText: false,
+    showCount: false,
+    countColor: '#ffffff',
+    countFontSize: 14,
   });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -85,7 +88,7 @@ export default function ImageAnnotator() {
     marker: Marker,
     isHovered: boolean = false
   ) => {
-    const { x, y, shape, size, color, borderSize, borderColor, opacity, text, textColor, fontSize, showText } = marker;
+    const { x, y, shape, size, color, borderSize, borderColor, opacity, text, textColor, fontSize, showText, count, showCount, countColor, countFontSize } = marker;
 
     ctx.save();
 
@@ -109,8 +112,21 @@ export default function ImageAnnotator() {
       ctx.strokeRect(x - size, y - size, size * 2, size * 2);
     }
 
-    // Draw text if enabled and text exists
-    if (showText && text && text.trim()) {
+    // Draw count if enabled (mutually exclusive with text)
+    if (showCount && count !== undefined) {
+      ctx.fillStyle = countColor || '#ffffff';
+      ctx.font = `${countFontSize || 14}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // Add text stroke for better readability
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.strokeText(count.toString(), x, y);
+      ctx.fillText(count.toString(), x, y);
+    }
+    // Draw text if enabled and count is not shown (mutually exclusive)
+    else if (showText && text && text.trim()) {
       ctx.fillStyle = textColor || '#ffffff';
       ctx.font = `${fontSize || 12}px Arial`;
       ctx.textAlign = 'center';
@@ -239,6 +255,8 @@ export default function ImageAnnotator() {
       x: coords.x,
       y: coords.y,
       ...markerSettings,
+      // Add sequential count if count mode is enabled
+      count: markerSettings.showCount ? markers.length + 1 : undefined,
     };
 
     setMarkers((prev) => [...prev, newMarker]);
@@ -293,6 +311,8 @@ export default function ImageAnnotator() {
       x: coords.x,
       y: coords.y,
       ...markerSettings,
+      // Add sequential count if count mode is enabled
+      count: markerSettings.showCount ? markers.length + 1 : undefined,
     };
 
     setMarkers((prev) => [...prev, newMarker]);
@@ -302,6 +322,17 @@ export default function ImageAnnotator() {
   const clearAllMarkers = () => {
     setMarkers([]);
     toast.info('All markers cleared');
+  };
+
+  // Reset count numbers
+  const resetCount = () => {
+    setMarkers((prev) => 
+      prev.map((marker, index) => ({
+        ...marker,
+        count: marker.showCount ? index + 1 : marker.count,
+      }))
+    );
+    toast.info('Count numbers reset');
   };
 
   // Undo last marker
@@ -345,6 +376,7 @@ export default function ImageAnnotator() {
           size: marker.size * markerScale,
           borderSize: marker.borderSize * markerScale,
           fontSize: (marker.fontSize || 12) * markerScale,
+          countFontSize: (marker.countFontSize || 14) * markerScale,
         };
         drawMarker(downloadCtx, scaledMarker);
       });
@@ -538,6 +570,7 @@ export default function ImageAnnotator() {
             settings={markerSettings}
             onSettingsChange={setMarkerSettings}
             markerCount={markers.length}
+            onResetCount={resetCount}
           />
         </div>
       </div>

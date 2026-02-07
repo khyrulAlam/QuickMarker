@@ -26,7 +26,7 @@ export default function MarkerPreview({ settings }: MarkerPreviewProps) {
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
 
-    const { shape, size, color, borderSize, borderColor, opacity, text, textColor, fontSize, showText } = settings;
+    const { shape, size, color, borderSize, borderColor, opacity, text, textColor, fontSize, showText, showCount, countColor, countFontSize } = settings;
 
     ctx.save();
 
@@ -49,8 +49,21 @@ export default function MarkerPreview({ settings }: MarkerPreviewProps) {
       ctx.strokeRect(centerX - size, centerY - size, size * 2, size * 2);
     }
 
-    // Draw text if enabled and text exists
-    if (showText && text && text.trim()) {
+    // Draw count if enabled (mutually exclusive with text)
+    if (showCount) {
+      ctx.fillStyle = countColor || '#ffffff';
+      ctx.font = `${countFontSize || 14}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // Add text stroke for better readability
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.strokeText('1', centerX, centerY);
+      ctx.fillText('1', centerX, centerY);
+    }
+    // Draw text if enabled and count is not shown (mutually exclusive)
+    else if (showText && text && text.trim()) {
       ctx.fillStyle = textColor || '#ffffff';
       ctx.font = `${fontSize || 12}px Arial`;
       ctx.textAlign = 'center';

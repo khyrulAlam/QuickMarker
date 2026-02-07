@@ -16,6 +16,10 @@ export interface Marker {
   textColor?: string;
   fontSize?: number;
   showText?: boolean;
+  count?: number;
+  showCount?: boolean;
+  countColor?: string;
+  countFontSize?: number;
 }
 
 // Marker settings (current tool configuration)
@@ -30,6 +34,9 @@ export interface MarkerSettings {
   textColor: string;
   fontSize: number;
   showText: boolean;
+  showCount: boolean;
+  countColor: string;
+  countFontSize: number;
 }
 
 // Image state
