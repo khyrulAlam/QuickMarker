@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { type MarkerSettings } from '@/lib/types';
 import MarkerPreview from './MarkerPreview';
 
@@ -25,7 +26,7 @@ export default function ControlPanel({
   onSettingsChange,
   markerCount,
 }: ControlPanelProps) {
-  const handleSettingChange = (key: keyof MarkerSettings, value: string | number) => {
+  const handleSettingChange = (key: keyof MarkerSettings, value: string | number | boolean) => {
     onSettingsChange({
       ...settings,
       [key]: value,
@@ -165,6 +166,79 @@ export default function ControlPanel({
               aria-label="Marker border color hex value"
             />
           </div>
+        </div>
+
+        <Separator />
+
+        {/* Text Options */}
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="showText"
+              checked={settings.showText}
+              onCheckedChange={(checked) => handleSettingChange('showText', checked === true)}
+            />
+            <Label htmlFor="showText" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Show text in markers
+            </Label>
+          </div>
+
+          {settings.showText && (
+            <div className="space-y-4 pl-6">
+              {/* Text Input */}
+              <div className="space-y-2">
+                <Label htmlFor="text">Text</Label>
+                <Input
+                  id="text"
+                  type="text"
+                  value={settings.text}
+                  onChange={(e) => handleSettingChange('text', e.target.value)}
+                  placeholder="Enter text for markers"
+                  aria-label="Marker text"
+                />
+              </div>
+
+              {/* Text Color */}
+              <div className="space-y-2">
+                <Label htmlFor="textColor">Text Color</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="textColor"
+                    type="color"
+                    value={settings.textColor}
+                    onChange={(e) => handleSettingChange('textColor', e.target.value)}
+                    className="w-20 h-10 cursor-pointer"
+                    aria-label="Text color"
+                  />
+                  <Input
+                    type="text"
+                    value={settings.textColor}
+                    onChange={(e) => handleSettingChange('textColor', e.target.value)}
+                    className="flex-1 font-mono"
+                    placeholder="#ffffff"
+                    aria-label="Text color hex value"
+                  />
+                </div>
+              </div>
+
+              {/* Font Size Slider */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label htmlFor="fontSize">Font Size</Label>
+                  <span className="text-sm text-muted-foreground">{settings.fontSize}px</span>
+                </div>
+                <Slider
+                  id="fontSize"
+                  min={8}
+                  max={24}
+                  step={1}
+                  value={[settings.fontSize]}
+                  onValueChange={(value) => handleSettingChange('fontSize', value[0])}
+                  aria-label="Text font size"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

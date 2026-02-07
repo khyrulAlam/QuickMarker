@@ -39,6 +39,10 @@ export default function ImageAnnotator() {
     borderSize: 2,
     borderColor: '#000000',
     opacity: 50,
+    text: '',
+    textColor: '#ffffff',
+    fontSize: 12,
+    showText: false,
   });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -81,7 +85,7 @@ export default function ImageAnnotator() {
     marker: Marker,
     isHovered: boolean = false
   ) => {
-    const { x, y, shape, size, color, borderSize, borderColor, opacity } = marker;
+    const { x, y, shape, size, color, borderSize, borderColor, opacity, text, textColor, fontSize, showText } = marker;
 
     ctx.save();
 
@@ -103,6 +107,20 @@ export default function ImageAnnotator() {
     } else if (shape === 'square') {
       ctx.fillRect(x - size, y - size, size * 2, size * 2);
       ctx.strokeRect(x - size, y - size, size * 2, size * 2);
+    }
+
+    // Draw text if enabled and text exists
+    if (showText && text && text.trim()) {
+      ctx.fillStyle = textColor || '#ffffff';
+      ctx.font = `${fontSize || 12}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // Add text stroke for better readability
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.strokeText(text, x, y);
+      ctx.fillText(text, x, y);
     }
 
     ctx.restore();
@@ -293,14 +311,46 @@ export default function ImageAnnotator() {
     toast.info('Last marker removed');
   };
 
-  // Handle download
+  // Handle download with high resolution
   const handleDownload = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !image) return;
+    if (!image) return;
 
     setIsDownloading(true);
     try {
-      canvas.toBlob((blob) => {
+      // Create high-resolution canvas for download
+      const downloadCanvas = document.createElement('canvas');
+      const downloadCtx = downloadCanvas.getContext('2d');
+      if (!downloadCtx) {
+        toast.error('Failed to create download canvas');
+        setIsDownloading(false);
+        return;
+      }
+
+      // Use the original image dimensions for better quality
+      downloadCanvas.width = image.naturalWidth;
+      downloadCanvas.height = image.naturalHeight;
+
+      // Draw the original image at full resolution
+      downloadCtx.drawImage(image, 0, 0);
+
+      // Scale factor for markers
+      const markerScale = downloadCanvas.width / canvasDimensions.width;
+
+      // Draw all markers at scaled positions
+      markers.forEach((marker) => {
+        const scaledMarker = {
+          ...marker,
+          x: marker.x * markerScale,
+          y: marker.y * markerScale,
+          size: marker.size * markerScale,
+          borderSize: marker.borderSize * markerScale,
+          fontSize: (marker.fontSize || 12) * markerScale,
+        };
+        drawMarker(downloadCtx, scaledMarker);
+      });
+
+      // Convert to blob and download
+      downloadCanvas.toBlob((blob) => {
         if (!blob) {
           toast.error('Failed to create image');
           setIsDownloading(false);
@@ -315,9 +365,9 @@ export default function ImageAnnotator() {
         link.click();
         URL.revokeObjectURL(url);
 
-        toast.success('Image downloaded successfully');
+        toast.success('High quality image downloaded successfully');
         setIsDownloading(false);
-      }, 'image/png');
+      }, 'image/png', 1.0); // Maximum quality
     } catch (error) {
       toast.error('Failed to download image');
       setIsDownloading(false);

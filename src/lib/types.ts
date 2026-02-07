@@ -12,6 +12,10 @@ export interface Marker {
   borderSize: number;
   borderColor: string;
   opacity: number;
+  text?: string;
+  textColor?: string;
+  fontSize?: number;
+  showText?: boolean;
 }
 
 // Marker settings (current tool configuration)
@@ -22,6 +26,10 @@ export interface MarkerSettings {
   borderSize: number;
   borderColor: string;
   opacity: number;
+  text: string;
+  textColor: string;
+  fontSize: number;
+  showText: boolean;
 }
 
 // Image state
