@@ -46,6 +46,7 @@ export default function ImageAnnotator() {
     showCount: false,
     countColor: '#ffffff',
     countFontSize: 14,
+    countStartFrom: 1,
   });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -256,7 +257,7 @@ export default function ImageAnnotator() {
       y: coords.y,
       ...markerSettings,
       // Add sequential count if count mode is enabled
-      count: markerSettings.showCount ? markers.length + 1 : undefined,
+      count: markerSettings.showCount ? markers.length + markerSettings.countStartFrom : undefined,
     };
 
     setMarkers((prev) => [...prev, newMarker]);
@@ -312,7 +313,7 @@ export default function ImageAnnotator() {
       y: coords.y,
       ...markerSettings,
       // Add sequential count if count mode is enabled
-      count: markerSettings.showCount ? markers.length + 1 : undefined,
+      count: markerSettings.showCount ? markers.length + markerSettings.countStartFrom : undefined,
     };
 
     setMarkers((prev) => [...prev, newMarker]);
@@ -329,7 +330,7 @@ export default function ImageAnnotator() {
     setMarkers((prev) => 
       prev.map((marker, index) => ({
         ...marker,
-        count: marker.showCount ? index + 1 : marker.count,
+        count: marker.showCount ? index + markerSettings.countStartFrom : marker.count,
       }))
     );
     toast.info('Count numbers reset');

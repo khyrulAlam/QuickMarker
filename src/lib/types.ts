@@ -37,6 +37,7 @@ export interface MarkerSettings {
   showCount: boolean;
   countColor: string;
   countFontSize: number;
+  countStartFrom: number;
 }
 
 // Image state

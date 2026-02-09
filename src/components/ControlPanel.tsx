@@ -346,6 +346,21 @@ export default function ControlPanel({
                   </div>
                 </div>
 
+                {/* Start Count From */}
+                <div className="space-y-2">
+                  <Label htmlFor="countStartFrom">Start Count From</Label>
+                  <Input
+                    id="countStartFrom"
+                    type="number"
+                    min={0}
+                    max={999}
+                    value={settings.countStartFrom}
+                    onChange={(e) => handleSettingChange('countStartFrom', parseInt(e.target.value) || 1)}
+                    className="w-full"
+                    aria-label="Starting count number"
+                  />
+                </div>
+
                 {/* Count Font Size Slider */}
                 <div className="space-y-2">
                   <div className="flex justify-between">
