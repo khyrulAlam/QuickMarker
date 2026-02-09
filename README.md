@@ -1,13 +1,13 @@
 # QuickMark - Image Annotation Tool
 
-A modern, feature-rich image annotation application built with React, TypeScript, Vite, and shadcn/ui. Easily upload images, place customizable markers, and download your annotated results.
+A modern, feature-rich image annotation application built with React, TypeScript, Vite, and shadcn/ui. Easily upload images, place customizable markers with text or sequential numbering, and download high-quality annotated results.
 
 ## Features
 
 ### Core Functionality
-- **Image Upload**: Support for JPG, PNG, and WEBP formats
+- **Image Upload**: Support for JPG, PNG, and WEBP formats with drag & drop
 - **Canvas Display**: Automatic scaling to maintain aspect ratio (max width: 900px)
-- **Marker Placement**: Click to place markers on the image
+- **Marker Placement**: Click or touch to place markers on the image
 - **Marker Customization**:
   - Shape: Circle or Square
   - Size: 10-50px adjustable radius
@@ -16,12 +16,25 @@ A modern, feature-rich image annotation application built with React, TypeScript
   - Border Color: Custom color picker
   - Fill Opacity: 0-100% adjustable
 
+### Text & Numbering Features
+- **Optional Text in Markers**: Add custom text inside markers
+  - Text color customization
+  - Font size adjustment (8-24px)
+  - Text stroke for better readability
+- **Sequential Count Numbers**: Automatic numbering (1, 2, 3...)
+  - Count color customization
+  - Count font size adjustment (8-24px)
+  - Reset count functionality
+  - Order based on marker placement sequence
+- **Mutually Exclusive**: Text OR count mode (not both simultaneously)
+
 ### Advanced Features
 - **Interactive Markers**: Click on any placed marker to delete it
 - **Live Preview**: Real-time preview of marker style before placement
 - **Marker Counter**: Badge showing total number of markers placed
 - **Hover Effects**: Markers highlight when hovering over them
-- **Download**: Export annotated images as PNG with timestamp
+- **High-Quality Downloads**: Export at original image resolution (not canvas size)
+- **Collapsible UI**: Organized control panel with expandable sections
 - **Toast Notifications**: User-friendly feedback for all actions
 - **Confirmation Dialogs**: AlertDialog for destructive actions
 
@@ -90,12 +103,12 @@ npm run preview
 QuickMark/
 ├── src/
 │   ├── components/
-│   │   ├── ImageAnnotator.tsx    # Main annotation component
-│   │   ├── ControlPanel.tsx      # Marker customization panel
-│   │   ├── MarkerPreview.tsx     # Live marker preview
-│   │   └── ui/                   # shadcn/ui components
+│   │   ├── ImageAnnotator.tsx    # Main annotation component (450+ lines)
+│   │   ├── ControlPanel.tsx      # Collapsible marker customization panel (330+ lines)
+│   │   ├── MarkerPreview.tsx     # Live marker preview with text/count support
+│   │   └── ui/                   # shadcn/ui components (Button, Input, Slider, etc.)
 │   ├── lib/
-│   │   ├── types.ts              # TypeScript interfaces
+│   │   ├── types.ts              # TypeScript interfaces with text/count support
 │   │   └── utils.ts              # Utility functions
 │   ├── App.tsx                   # Main app component
 │   ├── main.tsx                  # Application entry point
@@ -111,26 +124,34 @@ QuickMark/
 ## Usage Guide
 
 ### Uploading an Image
-1. Click the "Upload Image" button
+1. Click the "Upload Image" button or drag & drop an image
 2. Select an image file (JPG, PNG, or WEBP)
 3. The image will be displayed on the canvas
 
 ### Placing Markers
-1. Customize marker settings in the right panel:
-   - Choose shape (Circle or Square)
-   - Adjust size, colors, and opacity
+1. Customize marker settings in the collapsible right panel:
+   - **🎨 Shape & Style**: Choose shape, size, colors, and opacity
+   - **📝 Text Options**: Add optional text with color and font size
+   - **🔢 Count Options**: Enable sequential numbering with customization
    - See live preview of your marker style
 2. Click anywhere on the image to place a marker
 3. On mobile, tap on the image to place markers
+
+### Text vs Count Modes
+- **Text Mode**: Add custom text inside markers (optional)
+- **Count Mode**: Sequential numbers (1, 2, 3...) based on placement order
+- **Mutually Exclusive**: Only one mode can be active at a time
+- **Reset Count**: Use reset button to restart numbering from 1
 
 ### Editing Markers
 - **Delete Individual Marker**: Click directly on any marker
 - **Undo Last Marker**: Click "Undo Last" button or press `Ctrl/Cmd + Z`
 - **Clear All Markers**: Click "Clear All Markers" and confirm
+- **Reset Count**: Click "Reset Count" to restart numbering
 
 ### Downloading
 1. Click the "Download Image" button or press `Ctrl/Cmd + S`
-2. The annotated image will be saved as `annotated-image-[timestamp].png`
+2. High-quality image (original resolution) will be saved as `annotated-image-[timestamp].png`
 
 ## TypeScript Interfaces
 
@@ -146,6 +167,16 @@ interface Marker {
   borderSize: number;
   borderColor: string;
   opacity: number;
+  // Text options
+  text?: string;
+  textColor?: string;
+  fontSize?: number;
+  showText?: boolean;
+  // Count options
+  count?: number;
+  showCount?: boolean;
+  countColor?: string;
+  countFontSize?: number;
 }
 ```
 
@@ -158,6 +189,15 @@ interface MarkerSettings {
   borderSize: number;
   borderColor: string;
   opacity: number;
+  // Text settings
+  text: string;
+  textColor: string;
+  fontSize: number;
+  showText: boolean;
+  // Count settings
+  showCount: boolean;
+  countColor: string;
+  countFontSize: number;
 }
 ```
 
@@ -183,6 +223,15 @@ const [markerSettings, setMarkerSettings] = useState<MarkerSettings>({
   borderSize: 2,
   borderColor: '#000000',
   opacity: 50,
+  // Text defaults
+  text: '',
+  textColor: '#ffffff',
+  fontSize: 12,
+  showText: false,
+  // Count defaults
+  showCount: false,
+  countColor: '#ffffff',
+  countFontSize: 14,
 });
 ```
 
@@ -221,4 +270,4 @@ MIT License - feel free to use this project for personal or commercial purposes.
 
 ---
 
-Made with ❤️ by QuickMark Team
+Made with ❤️ by [Khayrul Alam](https://khayrulalam.com)
