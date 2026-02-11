@@ -55,7 +55,7 @@ function ControlPanelComponent({
   }, []);
 
   return (
-    <Card className="w-80 bg-card/90 backdrop-blur-md border shadow-lg">
+    <Card className="w-80 bg-card/90 backdrop-blur-md border-none shadow-none">
       <CardContent className="space-y-4 max-h-[80vh] overflow-y-auto p-6 scrollbar-hide">
         {/* Live Preview */}
         <div>
