@@ -75,19 +75,19 @@ function FloatingToolbarComponent({
   return (
     <>
       {/* Separate Settings Button - Far Left */}
-      <div className="fixed top-4 left-4 z-50">
+      <div className="fixed top-6 left-4 z-50">
         <Popover>
           <PopoverTrigger asChild>
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-12 w-12 p-0 bg-card/90 backdrop-blur-md border shadow-lg rounded-lg"
+              className="h-10 w-10 p-0 bg-card/90 backdrop-blur-md border shadow-lg rounded-lg"
             >
               <Settings className="h-4 w-4" />
               <span className="sr-only">Marker settings</span>
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80 p-0" align="start" side="bottom">
+          <PopoverContent className="w-64 p-0 border-none rounded-lg translate-y-1" align="start" side="bottom">
             <ControlPanel
               settings={markerSettings}
               onSettingsChange={onSettingsChange}

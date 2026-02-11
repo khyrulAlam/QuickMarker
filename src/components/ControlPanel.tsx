@@ -34,7 +34,7 @@ function ControlPanelComponent({
 }: ControlPanelProps) {
   // State for controlling which sections are open
   const [openSections, setOpenSections] = useState({
-    style: true,  // Shape & Style section open by default
+    style: false,
     text: false,
     count: false,
   });
@@ -55,7 +55,7 @@ function ControlPanelComponent({
   }, []);
 
   return (
-    <Card className="w-80 bg-card/90 backdrop-blur-md border-none shadow-none">
+    <Card className="w-64 bg-card/90 backdrop-blur-md border shadow-lg">
       <CardContent className="space-y-4 max-h-[80vh] overflow-y-auto p-6 scrollbar-hide">
         {/* Live Preview */}
         <div>
@@ -228,7 +228,7 @@ function ControlPanelComponent({
             </div>
 
             {settings.showText && (
-              <div className="space-y-4 pl-6">
+              <div className="space-y-4 pl-2">
                 {/* Text Input */}
                 <div className="space-y-2">
                   <Label htmlFor="text">Text</Label>
@@ -312,12 +312,12 @@ function ControlPanelComponent({
                 onCheckedChange={(checked) => handleSettingChange('showCount', checked === true)}
               />
               <Label htmlFor="showCount" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Show count numbers in markers
+                Show count in markers
               </Label>
             </div>
 
             {settings.showCount && (
-              <div className="space-y-4 pl-6">
+              <div className="space-y-4 pl-2">
                 {/* Count Color */}
                 <div className="space-y-2">
                   <Label htmlFor="countColor">Count Color</Label>
