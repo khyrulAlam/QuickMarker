@@ -99,9 +99,16 @@ export const useCanvas = (
     };
   }, [image, redrawCanvas, onMarkersScale]);
 
+  // Method to restore canvas dimensions from session
+  const restoreCanvasDimensions = useCallback((dimensions: CanvasDimensions) => {
+    setCanvasDimensions(dimensions);
+    prevDimensionsRef.current = dimensions;
+  }, []);
+
   return {
     canvasRef,
     canvasDimensions,
     redrawCanvas,
+    restoreCanvasDimensions,
   };
 };

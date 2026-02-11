@@ -1,35 +1,34 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ImageIcon } from 'lucide-react';
-import { type MarkerSettings } from '@/lib/types';
 import { FloatingToolbar } from './FloatingToolbar';
 import { useMarkers } from '@/hooks/useMarkers';
 import { useCanvas } from '@/hooks/useCanvas';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { usePersistedSettings } from '@/hooks/usePersistedSettings';
+import { useSessionPersistence } from '@/hooks/useSessionPersistence';
 import { getCanvasCoordinates, getCanvasCoordinatesFromTouch, getMarkerAtPosition } from '@/utils/canvasUtils';
 import { downloadAnnotatedImage } from '@/utils/downloadUtils';
+import * as sessionService from '@/services/sessionService';
 
 export default function ImageAnnotator() {
   const [isDownloading, setIsDownloading] = useState(false);
-  const [markerSettings, setMarkerSettings] = useState<MarkerSettings>({
-    shape: 'circle',
-    size: 20,
-    color: '#ff0000',
-    borderSize: 2,
-    borderColor: '#000000',
-    opacity: 50,
-    text: '',
-    textColor: '#ffffff',
-    fontSize: 12,
-    showText: false,
-    showCount: false,
-    countColor: '#ffffff',
-    countFontSize: 14,
-    countStartFrom: 1,
-  });
+  
+  // Persistent settings hook replaces local state
+  const {
+    settings: markerSettings,
+    updateSettings: setMarkerSettings,
+  } = usePersistedSettings();
+  
+  // Session persistence hook for auto-save and restoration
+  const {
+    updateMarkers: saveMarkers,
+    updateCanvasDimensions: saveCanvasDimensions,
+    initializeSession,
+  } = useSessionPersistence();
 
   // Custom hooks
   const {
@@ -42,15 +41,60 @@ export default function ImageAnnotator() {
     clearAllMarkers,
     resetMarkersOnNewImage,
     scaleMarkers,
+    restoreMarkers,
   } = useMarkers();
 
-  const { image, fileInputRef, handleImageUpload, handleDragOver, handleDrop, triggerUpload } = useImageUpload(
-    () => {
+  const { image, fileInputRef, handleImageUpload, handleDragOver, handleDrop, triggerUpload, restoreImage } = useImageUpload(
+    async (uploadedImage: HTMLImageElement, imageName: string) => {
       resetMarkersOnNewImage();
+      // Create new session when image is uploaded
+      try {
+        await sessionService.createNewSession(uploadedImage, imageName, canvasDimensions);
+      } catch (error: any) {
+        console.error('Failed to create new session:', error);
+        toast.error('Failed to save session');
+      }
     }
   );
 
-  const { canvasRef, canvasDimensions } = useCanvas(image, markers, hoveredMarkerId, scaleMarkers);
+  const { canvasRef, canvasDimensions, restoreCanvasDimensions } = useCanvas(image, markers, hoveredMarkerId, scaleMarkers);
+  
+  // Initialize session on component mount
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const restored = await initializeSession();
+        if (restored) {
+          // Restore the session data to the UI
+          restoreImage(restored.image);
+          restoreMarkers(restored.markers);
+          restoreCanvasDimensions(restored.canvasDimensions);
+          
+          toast.success(`Restored ${restored.markers.length} markers from previous session`);
+        }
+      } catch (error: any) {
+        console.error('Session initialization failed:', error);
+      }
+    };
+    
+    initSession();
+  }, [initializeSession, restoreImage, restoreMarkers, restoreCanvasDimensions]);
+  
+  // Auto-save markers when they change
+  useEffect(() => {
+    if (image && markers.length >= 0) {
+      saveMarkers(markers);
+    }
+  }, [markers, saveMarkers, image]);
+  
+  // Update canvas dimensions in session when they change
+  useEffect(() => {
+    if (image && canvasDimensions) {
+      saveCanvasDimensions(canvasDimensions).catch((error: any) => {
+        console.error('Failed to update canvas dimensions:', error);
+      });
+    }
+  }, [canvasDimensions, saveCanvasDimensions, image]);
 
   // Handle download with loading state
   const handleDownload = async () => {
@@ -69,10 +113,7 @@ export default function ImageAnnotator() {
 
   // Reset count functionality
   const resetCount = () => {
-    setMarkerSettings(prev => ({
-      ...prev,
-      countStartFrom: 1
-    }));
+    setMarkerSettings({ countStartFrom: 1 });
   };
 
   // Canvas interaction handlers

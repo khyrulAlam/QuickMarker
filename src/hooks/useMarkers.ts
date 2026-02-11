@@ -46,6 +46,11 @@ export const useMarkers = () => {
     setMarkers(scaleFn);
   }, []);
 
+  const restoreMarkers = useCallback((restoredMarkers: Marker[]) => {
+    setMarkers(restoredMarkers);
+    setHoveredMarkerId(null);
+  }, []);
+
   return {
     markers,
     hoveredMarkerId,
@@ -56,5 +61,6 @@ export const useMarkers = () => {
     clearAllMarkers,
     resetMarkersOnNewImage,
     scaleMarkers,
+    restoreMarkers,
   };
 };

@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { loadImageFromFile } from '@/utils/imageUtils';
 
-export const useImageUpload = (onImageLoad: (image: HTMLImageElement) => void) => {
+export const useImageUpload = (onImageLoad?: (image: HTMLImageElement, imageName: string) => void | Promise<void>) => {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -11,7 +11,9 @@ export const useImageUpload = (onImageLoad: (image: HTMLImageElement) => void) =
     try {
       const img = await loadImageFromFile(file);
       setImage(img);
-      onImageLoad(img);
+      if (onImageLoad) {
+        await onImageLoad(img, file.name);
+      }
       toast.success('Image loaded successfully');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load image');
@@ -43,6 +45,11 @@ export const useImageUpload = (onImageLoad: (image: HTMLImageElement) => void) =
     fileInputRef.current?.click();
   }, []);
 
+  // Method to restore image from session
+  const restoreImage = useCallback((img: HTMLImageElement) => {
+    setImage(img);
+  }, []);
+
   return {
     image,
     fileInputRef,
@@ -50,5 +57,6 @@ export const useImageUpload = (onImageLoad: (image: HTMLImageElement) => void) =
     handleDragOver,
     handleDrop,
     triggerUpload,
+    restoreImage,
   };
 };
