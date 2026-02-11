@@ -1,26 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Download, Upload, Undo } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { type Marker, type MarkerSettings, type CanvasDimensions } from '@/lib/types';
-import ControlPanel from './ControlPanel';
+import { FloatingToolbar } from './FloatingToolbar';
+import { ImageIcon } from 'lucide-react';
 
-const MAX_CANVAS_WIDTH = 900;
+const TOOLBAR_HEIGHT = 80; // Space for floating toolbar
 
 export default function ImageAnnotator() {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -28,7 +14,7 @@ export default function ImageAnnotator() {
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [canvasDimensions, setCanvasDimensions] = useState<CanvasDimensions>({
-    width: MAX_CANVAS_WIDTH,
+    width: 800,
     height: 600,
   });
 
@@ -52,11 +38,27 @@ export default function ImageAnnotator() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Calculate canvas dimensions based on image aspect ratio
+  // Calculate canvas dimensions for full viewport while maintaining aspect ratio
   const calculateCanvasDimensions = useCallback((img: HTMLImageElement): CanvasDimensions => {
-    const aspectRatio = img.height / img.width;
-    const width = Math.min(img.width, MAX_CANVAS_WIDTH);
-    const height = width * aspectRatio;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight - TOOLBAR_HEIGHT;
+    
+    const imageAspectRatio = img.width / img.height;
+    const viewportAspectRatio = viewportWidth / viewportHeight;
+    
+    let width: number;
+    let height: number;
+    
+    if (imageAspectRatio > viewportAspectRatio) {
+      // Image is wider than viewport - fit to width
+      width = viewportWidth * 0.9; // Leave some margin
+      height = width / imageAspectRatio;
+    } else {
+      // Image is taller than viewport - fit to height  
+      height = viewportHeight * 0.9; // Leave some margin
+      width = height * imageAspectRatio;
+    }
+    
     return { width, height };
   }, []);
 
@@ -155,11 +157,8 @@ export default function ImageAnnotator() {
       : null;
   };
 
-  // Handle image upload
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  // Process image file (shared between upload and drag & drop)
+  const processImageFile = (file: File) => {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       toast.error('Please select a valid image file');
@@ -182,6 +181,27 @@ export default function ImageAnnotator() {
       img.src = e.target?.result as string;
     };
     reader.readAsDataURL(file);
+  };
+
+  // Handle image upload from file input
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    processImageFile(file);
+  };
+
+  // Handle drag and drop events
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
+    if (file) {
+      processImageFile(file);
+    }
   };
 
   // Get canvas coordinates from mouse event
@@ -440,140 +460,96 @@ export default function ImageAnnotator() {
     redrawCanvas();
   }, [redrawCanvas]);
 
+  // Handle window resize for responsive canvas with debouncing
+  useEffect(() => {
+    let timeoutId: number;
+    
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (image) {
+          const dimensions = calculateCanvasDimensions(image);
+          setCanvasDimensions(dimensions);
+          // Trigger redraw after dimensions change
+          setTimeout(redrawCanvas, 10);
+        }
+      }, 100); // Debounce resize events
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
+  }, [image, calculateCanvasDimensions, redrawCanvas]);
+
   return (
     <TooltipProvider>
-      <div className="flex flex-col lg:flex-row gap-6 w-full">
-        {/* Main Canvas Area */}
-        <div className="flex-1">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Image Annotator</CardTitle>
-                <Badge variant="secondary">{markers.length} markers</Badge>
+      <div 
+        className="relative w-screen h-screen bg-background overflow-hidden"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {/* Hidden file input */}
+        <Input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageUpload}
+          className="hidden"
+          aria-label="Upload image"
+        />
+
+        {/* Floating Toolbar */}
+        <FloatingToolbar
+          onUpload={() => fileInputRef.current?.click()}
+          onDownload={handleDownload}
+          onUndo={undoLastMarker}
+          onClearAll={clearAllMarkers}
+          markerCount={markers.length}
+          hasImage={!!image}
+          isDownloading={isDownloading}
+          hasMarkers={markers.length > 0}
+          markerSettings={markerSettings}
+          onSettingsChange={setMarkerSettings}
+          onResetCount={resetCount}
+        />
+
+        {/* Full Screen Canvas Area */}
+        <div className="absolute inset-0 pt-20 flex items-center justify-center">
+          {image ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <canvas
+                  ref={canvasRef}
+                  width={canvasDimensions.width}
+                  height={canvasDimensions.height}
+                  onClick={handleCanvasClick}
+                  onMouseMove={handleCanvasMouseMove}
+                  onMouseLeave={handleCanvasMouseLeave}
+                  onTouchStart={handleTouchStart}
+                  className="touch-none border rounded-lg shadow-lg"
+                  style={{ cursor: 'crosshair' }}
+                  aria-label="Image canvas with markers"
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Click to place marker • Click marker to delete</p>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <div className="flex items-center justify-center h-64 w-64 rounded-lg text-muted-foreground">
+              <div className="text-center">
+                <div className="mx-auto h-12 w-12 mb-2 opacity-50 text-muted-foreground">
+                  <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                </div>
+                <p>No image loaded</p>
+                <p className="text-sm">Use Upload button or drag and drop to start</p>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* File upload */}
-                <div className="flex gap-2">
-                  <Input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    aria-label="Upload image"
-                  />
-                  <Button
-                    onClick={() => fileInputRef.current?.click()}
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Upload Image
-                  </Button>
-                </div>
-
-                {/* Canvas or placeholder */}
-                <div className="border rounded-lg overflow-hidden bg-muted/10">
-                  {image ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <canvas
-                          ref={canvasRef}
-                          width={canvasDimensions.width}
-                          height={canvasDimensions.height}
-                          onClick={handleCanvasClick}
-                          onMouseMove={handleCanvasMouseMove}
-                          onMouseLeave={handleCanvasMouseLeave}
-                          onTouchStart={handleTouchStart}
-                          className="max-w-full h-auto touch-none"
-                          style={{ cursor: 'crosshair' }}
-                          aria-label="Image canvas with markers"
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Click to place marker • Click marker to delete</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <div className="flex items-center justify-center h-64 text-muted-foreground">
-                      <div className="text-center">
-                        <Upload className="mx-auto h-12 w-12 mb-2 opacity-50" />
-                        <p>No image loaded</p>
-                        <p className="text-sm">Upload an image to start annotating</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    onClick={undoLastMarker}
-                    disabled={markers.length === 0}
-                    variant="outline"
-                    aria-label="Undo last marker"
-                  >
-                    <Undo className="mr-2 h-4 w-4" />
-                    Undo Last
-                  </Button>
-
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button disabled={markers.length === 0} variant="destructive">
-                        Clear All Markers
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Clear All Markers?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. All markers will be permanently removed from
-                          the canvas.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={clearAllMarkers}>
-                          Clear All
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-
-                  <Button
-                    onClick={handleDownload}
-                    disabled={!image || isDownloading}
-                    className="ml-auto"
-                    aria-label="Download annotated image"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    {isDownloading ? 'Downloading...' : 'Download Image'}
-                  </Button>
-                </div>
-
-                {/* Keyboard shortcuts hint */}
-                <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/50 rounded-md">
-                  <p className="font-medium">Keyboard Shortcuts:</p>
-                  <p>• Ctrl/Cmd + Z: Undo last marker</p>
-                  <p>• Delete/Backspace: Remove last marker</p>
-                  <p>• Ctrl/Cmd + S: Download image</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          )}
         </div>
 
-        {/* Control Panel */}
-        <div className="lg:w-80">
-          <ControlPanel
-            settings={markerSettings}
-            onSettingsChange={setMarkerSettings}
-            markerCount={markers.length}
-            onResetCount={resetCount}
-          />
-        </div>
       </div>
     </TooltipProvider>
   );
