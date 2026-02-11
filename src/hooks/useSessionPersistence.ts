@@ -203,7 +203,10 @@ export const useSessionPersistence = (): UseSessionPersistenceReturn => {
       
       if (restoredSession) {
         await updateSessionInfo();
-        toast.success('Previous work restored');
+        // Delay toast to prevent visual glitch during initial render
+        setTimeout(() => {
+          toast.success('Previous work restored');
+        }, 300);
       }
       
       return restoredSession;
@@ -383,38 +386,80 @@ export const useSessionPersistence = (): UseSessionPersistenceReturn => {
   }, []);
 
   /**
-   * Cleanup on component unmount
+   * Comprehensive cleanup on component unmount
+   * Ensures all timers, intervals, and resources are properly disposed
    */
   useEffect(() => {
     return () => {
-      // Cancel any pending operations
-      if (autoSaveRef.current) {
-        autoSaveRef.current.cancel();
+      try {
+        // Cancel any pending auto-save operations
+        if (autoSaveRef.current) {
+          autoSaveRef.current.cancel();
+          autoSaveRef.current = null;
+        }
+        
+        // Stop time counter interval
+        stopTimeCounter();
+        
+        // Clear all timer references
+        if (timeUpdateIntervalRef.current) {
+          clearInterval(timeUpdateIntervalRef.current);
+          timeUpdateIntervalRef.current = null;
+        }
+        
+        // Clean up session service resources
+        sessionService.cleanup();
+        
+        // Reset state to prevent memory leaks
+        setSessionInfo(null);
+        setHasPendingChanges(false);
+        setTimeUntilAutoSave(null);
+        
+      } catch (error) {
+        console.warn('Cleanup error in useSessionPersistence:', error);
       }
-      stopTimeCounter();
-      
-      // Clean up session service
-      sessionService.cleanup();
     };
   }, [stopTimeCounter]);
 
   /**
-   * Handle page unload to save pending changes
+   * Handle page unload to save pending changes with better cleanup
    */
   useEffect(() => {
-    const handleBeforeUnload = (): void => {
-      if (autoSaveRef.current) {
-        // Force save any pending changes
-        autoSaveRef.current.flush();
+    const handleBeforeUnload = (event: BeforeUnloadEvent): void => {
+      try {
+        if (autoSaveRef.current && autoSaveRef.current.isPending()) {
+          // Force save any pending changes
+          autoSaveRef.current.flush();
+          
+          // Show warning for unsaved changes
+          event.preventDefault();
+          event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        }
+      } catch (error) {
+        console.warn('Before unload handler error:', error);
+      }
+    };
+
+    const handleUnload = (): void => {
+      // Final cleanup on actual unload
+      try {
+        if (autoSaveRef.current) {
+          autoSaveRef.current.cancel();
+        }
+        stopTimeCounter();
+      } catch (error) {
+        console.warn('Unload cleanup error:', error);
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('unload', handleUnload);
     
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('unload', handleUnload);
     };
-  }, []);
+  }, [stopTimeCounter]);
 
   return {
     isRestoring,

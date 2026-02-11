@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Download, Upload, Undo, Trash2, Info, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +25,7 @@ interface FloatingToolbarProps {
   onResetCount: () => void;
 }
 
-export function FloatingToolbar({
+function FloatingToolbarComponent({
   onUpload,
   onDownload,
   onUndo,
@@ -37,6 +38,38 @@ export function FloatingToolbar({
   onSettingsChange,
   onResetCount,
 }: FloatingToolbarProps) {
+  // Memoize computed values to prevent unnecessary re-renders
+  const markerCountText = useMemo(() => `${markerCount} markers`, [markerCount]);
+  
+  const downloadButtonText = useMemo(() => {
+    return isDownloading ? 'Downloading...' : 'Download';
+  }, [isDownloading]);
+  
+  const isDownloadDisabled = useMemo(() => {
+    return !hasImage || isDownloading;
+  }, [hasImage, isDownloading]);
+  
+  // Memoize keyboard shortcuts content to prevent re-creation
+  const keyboardShortcuts = useMemo(() => (
+    <div className="space-y-3">
+      <h4 className="font-medium text-sm">Keyboard Shortcuts</h4>
+      <div className="space-y-2 text-xs">
+        <div className="flex justify-between">
+          <span>Undo last marker</span>
+          <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Ctrl+Z</kbd>
+        </div>
+        <div className="flex justify-between">
+          <span>Remove last marker</span>
+          <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Delete</kbd>
+        </div>
+        <div className="flex justify-between">
+          <span>Download image</span>
+          <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Ctrl+S</kbd>
+        </div>
+      </div>
+    </div>
+  ), []);
+
   return (
     <>
       {/* Separate Settings Button - Far Left */}
@@ -69,7 +102,7 @@ export function FloatingToolbar({
         {/* App Title */}
         <div className="flex items-center gap-3 mr-6">
           <h1 className="text-lg font-semibold whitespace-nowrap">QuickMark</h1>
-          <Badge variant="secondary" className="whitespace-nowrap">{markerCount} markers</Badge>
+          <Badge variant="secondary" className="whitespace-nowrap">{markerCountText}</Badge>
         </div>
 
         {/* Divider */}
@@ -83,12 +116,12 @@ export function FloatingToolbar({
 
         <Button 
           onClick={onDownload} 
-          disabled={!hasImage || isDownloading} 
+          disabled={isDownloadDisabled} 
           variant="ghost" 
           size="sm"
         >
           <Download className="h-4 w-4 mr-2" />
-          {isDownloading ? 'Downloading...' : 'Download'}
+          {downloadButtonText}
         </Button>
 
         <Button 
@@ -123,23 +156,7 @@ export function FloatingToolbar({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-72" align="end">
-            <div className="space-y-3">
-              <h4 className="font-medium text-sm">Keyboard Shortcuts</h4>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span>Undo last marker</span>
-                  <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Ctrl+Z</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span>Remove last marker</span>
-                  <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Delete</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span>Download image</span>
-                  <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Ctrl+S</kbd>
-                </div>
-              </div>
-            </div>
+            {keyboardShortcuts}
           </PopoverContent>
         </Popover>
 
@@ -150,3 +167,15 @@ export function FloatingToolbar({
     </>
   );
 }
+
+// Export memoized component with proper prop comparison
+export const FloatingToolbar = memo(FloatingToolbarComponent, (prevProps, nextProps) => {
+  // Only re-render if these specific props have changed
+  return (
+    prevProps.markerCount === nextProps.markerCount &&
+    prevProps.hasImage === nextProps.hasImage &&
+    prevProps.isDownloading === nextProps.isDownloading &&
+    prevProps.hasMarkers === nextProps.hasMarkers &&
+    prevProps.markerSettings === nextProps.markerSettings
+  );
+});

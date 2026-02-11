@@ -1,5 +1,5 @@
 import { type WorkSessionRecord, STORES } from '../schema';
-import { getObjectStore, promisifyRequest } from '../connection';
+import { getObjectStore, promisifyRequest, batchedOperations } from '../connection';
 import { type Marker, type CanvasDimensions } from '@/lib/types';
 
 /**
@@ -35,15 +35,12 @@ export const saveWorkSession = async (
   canvasDimensions: CanvasDimensions
 ): Promise<void> => {
   try {
-    const store = await getObjectStore(STORES.WORK_SESSION, 'readwrite');
-    
     const now = Date.now();
     
-    // Check if a session already exists to preserve creation time
+    // Check if a session already exists to preserve creation time (using batched operation)
     let createdAt = now;
     try {
-      const existingRequest = store.get('current');
-      const existingSession = await promisifyRequest(existingRequest);
+      const existingSession = await batchedOperations.get(STORES.WORK_SESSION, 'current');
       if (existingSession) {
         createdAt = existingSession.createdAt;
       }
@@ -63,8 +60,8 @@ export const saveWorkSession = async (
       version: 1, // For future schema migrations
     };
     
-    const request = store.put(sessionRecord);
-    await promisifyRequest(request);
+    // Use batched operation for improved performance
+    await batchedOperations.put(STORES.WORK_SESSION, sessionRecord);
     
   } catch (error) {
     console.error('Failed to save work session to IndexedDB:', error);
@@ -81,10 +78,8 @@ export const saveWorkSession = async (
  */
 export const loadWorkSession = async (): Promise<WorkSessionRecord | null> => {
   try {
-    const store = await getObjectStore(STORES.WORK_SESSION, 'readonly');
-    const request = store.get('current');
-    const result = await promisifyRequest(request);
-    
+    // Use batched operation for improved performance
+    const result = await batchedOperations.get(STORES.WORK_SESSION, 'current');
     return result || null;
     
   } catch (error) {
@@ -104,8 +99,8 @@ export const loadWorkSession = async (): Promise<WorkSessionRecord | null> => {
  */
 export const updateSessionMarkers = async (markers: Marker[]): Promise<void> => {
   try {
-    // Load existing session
-    const existingSession = await loadWorkSession();
+    // Load existing session using batched operation
+    const existingSession = await batchedOperations.get(STORES.WORK_SESSION, 'current');
     if (!existingSession) {
       throw new Error('No existing work session to update');
     }
@@ -117,9 +112,8 @@ export const updateSessionMarkers = async (markers: Marker[]): Promise<void> => 
       lastUpdated: Date.now(),
     };
     
-    const store = await getObjectStore(STORES.WORK_SESSION, 'readwrite');
-    const request = store.put(updatedSession);
-    await promisifyRequest(request);
+    // Use batched operation for improved performance
+    await batchedOperations.put(STORES.WORK_SESSION, updatedSession);
     
   } catch (error) {
     console.error('Failed to update session markers:', error);
@@ -171,9 +165,8 @@ export const updateSessionCanvasDimensions = async (
  */
 export const deleteWorkSession = async (): Promise<void> => {
   try {
-    const store = await getObjectStore(STORES.WORK_SESSION, 'readwrite');
-    const request = store.delete('current');
-    await promisifyRequest(request);
+    // Use batched operation for improved performance
+    await batchedOperations.delete(STORES.WORK_SESSION, 'current');
     
   } catch (error) {
     console.error('Failed to delete work session:', error);
@@ -189,10 +182,8 @@ export const deleteWorkSession = async (): Promise<void> => {
  */
 export const workSessionExists = async (): Promise<boolean> => {
   try {
-    const store = await getObjectStore(STORES.WORK_SESSION, 'readonly');
-    const request = store.get('current');
-    const result = await promisifyRequest(request);
-    
+    // Use batched operation for improved performance
+    const result = await batchedOperations.get(STORES.WORK_SESSION, 'current');
     return result !== undefined;
     
   } catch (error) {
@@ -216,9 +207,8 @@ export const getWorkSessionMetadata = async (): Promise<{
   version: number;
 } | null> => {
   try {
-    const store = await getObjectStore(STORES.WORK_SESSION, 'readonly');
-    const request = store.get('current');
-    const result = await promisifyRequest(request);
+    // Use batched operation for improved performance
+    const result = await batchedOperations.get(STORES.WORK_SESSION, 'current');
     
     if (result) {
       return {

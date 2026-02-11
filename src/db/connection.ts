@@ -187,6 +187,291 @@ export const isIndexedDBSupported = (): boolean => {
 };
 
 /**
+ * Transaction Batching System
+ * Optimizes database performance by batching multiple operations into single transactions
+ */
+
+interface BatchedOperation {
+  storeName: string;
+  operation: 'put' | 'get' | 'delete' | 'clear';
+  data?: any;
+  key?: any;
+}
+
+interface BatchResult {
+  success: boolean;
+  result?: any;
+  error?: Error;
+}
+
+class TransactionBatcher {
+  private pendingOperations: BatchedOperation[] = [];
+  private batchTimeout: number | null = null;
+  private readonly batchDelay = 50; // 50ms delay to collect operations
+  private readonly maxBatchSize = 20; // Maximum operations per batch
+  
+  /**
+   * Adds an operation to the batch queue
+   */
+  addOperation(operation: BatchedOperation): Promise<BatchResult> {
+    return new Promise((resolve) => {
+      this.pendingOperations.push({
+        ...operation,
+        resolve,
+      } as any);
+      
+      // Process batch if we reach max size
+      if (this.pendingOperations.length >= this.maxBatchSize) {
+        this.processBatch();
+      } else {
+        // Schedule batch processing if not already scheduled
+        this.scheduleBatchProcessing();
+      }
+    });
+  }
+  
+  /**
+   * Schedules batch processing with debouncing
+   */
+  private scheduleBatchProcessing(): void {
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+    }
+    
+    this.batchTimeout = window.setTimeout(() => {
+      this.processBatch();
+    }, this.batchDelay);
+  }
+  
+  /**
+   * Processes all pending operations in optimized batches
+   */
+  private async processBatch(): Promise<void> {
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+      this.batchTimeout = null;
+    }
+    
+    if (this.pendingOperations.length === 0) {
+      return;
+    }
+    
+    const operations = [...this.pendingOperations];
+    this.pendingOperations = [];
+    
+    // Group operations by store for optimization
+    const storeGroups = new Map<string, (BatchedOperation & { resolve: (result: BatchResult) => void })[]>();
+    
+    operations.forEach((op: any) => {
+      if (!storeGroups.has(op.storeName)) {
+        storeGroups.set(op.storeName, []);
+      }
+      storeGroups.get(op.storeName)!.push(op);
+    });
+    
+    // Process each store group
+    for (const [storeName, storeOps] of storeGroups) {
+      try {
+        await this.processStoreOperations(storeName, storeOps);
+      } catch (error) {
+        // Mark all operations in this store as failed
+        storeOps.forEach(op => {
+          op.resolve({
+            success: false,
+            error: error instanceof Error ? error : new Error('Batch operation failed'),
+          });
+        });
+      }
+    }
+  }
+  
+  /**
+   * Processes operations for a single store in a transaction
+   */
+  private async processStoreOperations(
+    storeName: string,
+    operations: (BatchedOperation & { resolve: (result: BatchResult) => void })[]
+  ): Promise<void> {
+    try {
+      const store = await getObjectStore(storeName, 'readwrite');
+      const results = new Map<number, any>();
+      
+      // Execute all operations within the same transaction
+      const promises = operations.map(async (op, index) => {
+        try {
+          let request: IDBRequest;
+          
+          switch (op.operation) {
+            case 'put':
+              request = op.key ? store.put(op.data, op.key) : store.put(op.data);
+              break;
+            case 'get':
+              request = store.get(op.key);
+              break;
+            case 'delete':
+              request = store.delete(op.key);
+              break;
+            case 'clear':
+              request = store.clear();
+              break;
+            default:
+              throw new Error(`Unknown operation: ${op.operation}`);
+          }
+          
+          const result = await promisifyRequest(request);
+          results.set(index, result);
+          
+        } catch (error) {
+          results.set(index, { error });
+        }
+      });
+      
+      // Wait for all operations to complete
+      await Promise.all(promises);
+      
+      // Resolve all operations with their results
+      operations.forEach((op, index) => {
+        const result = results.get(index);
+        if (result?.error) {
+          op.resolve({
+            success: false,
+            error: result.error,
+          });
+        } else {
+          op.resolve({
+            success: true,
+            result,
+          });
+        }
+      });
+      
+    } catch (error) {
+      // Handle transaction-level errors
+      operations.forEach(op => {
+        op.resolve({
+          success: false,
+          error: error instanceof Error ? error : new Error('Transaction failed'),
+        });
+      });
+    }
+  }
+  
+  /**
+   * Forces immediate processing of pending operations
+   */
+  flush(): Promise<void> {
+    return this.processBatch();
+  }
+  
+  /**
+   * Clears all pending operations (cleanup)
+   */
+  clear(): void {
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+      this.batchTimeout = null;
+    }
+    
+    // Reject all pending operations
+    this.pendingOperations.forEach((op: any) => {
+      op.resolve({
+        success: false,
+        error: new Error('Batch operation cancelled'),
+      });
+    });
+    
+    this.pendingOperations = [];
+  }
+}
+
+// Global batcher instance
+const transactionBatcher = new TransactionBatcher();
+
+/**
+ * Optimized database operations using transaction batching
+ * Use these instead of direct store operations for better performance
+ */
+export const batchedOperations = {
+  /**
+   * Batched put operation
+   */
+  put: async (storeName: string, data: any, key?: any): Promise<any> => {
+    const result = await transactionBatcher.addOperation({
+      storeName,
+      operation: 'put',
+      data,
+      key,
+    });
+    
+    if (!result.success) {
+      throw result.error || new Error('Batched put operation failed');
+    }
+    
+    return result.result;
+  },
+  
+  /**
+   * Batched get operation
+   */
+  get: async (storeName: string, key: any): Promise<any> => {
+    const result = await transactionBatcher.addOperation({
+      storeName,
+      operation: 'get',
+      key,
+    });
+    
+    if (!result.success) {
+      throw result.error || new Error('Batched get operation failed');
+    }
+    
+    return result.result;
+  },
+  
+  /**
+   * Batched delete operation
+   */
+  delete: async (storeName: string, key: any): Promise<void> => {
+    const result = await transactionBatcher.addOperation({
+      storeName,
+      operation: 'delete',
+      key,
+    });
+    
+    if (!result.success) {
+      throw result.error || new Error('Batched delete operation failed');
+    }
+  },
+  
+  /**
+   * Batched clear operation
+   */
+  clear: async (storeName: string): Promise<void> => {
+    const result = await transactionBatcher.addOperation({
+      storeName,
+      operation: 'clear',
+    });
+    
+    if (!result.success) {
+      throw result.error || new Error('Batched clear operation failed');
+    }
+  },
+  
+  /**
+   * Forces immediate execution of all pending operations
+   */
+  flush: (): Promise<void> => {
+    return transactionBatcher.flush();
+  },
+  
+  /**
+   * Cancels all pending operations
+   */
+  cancel: (): void => {
+    transactionBatcher.clear();
+  },
+};
+
+/**
  * Deletes the entire database (useful for testing or data reset)
  * WARNING: This will permanently delete all stored data
  * 

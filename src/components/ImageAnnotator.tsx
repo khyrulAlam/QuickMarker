@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -11,11 +11,14 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { usePersistedSettings } from '@/hooks/usePersistedSettings';
 import { useSessionPersistence } from '@/hooks/useSessionPersistence';
 import { getCanvasCoordinates, getCanvasCoordinatesFromTouch, getMarkerAtPosition } from '@/utils/canvasUtils';
+import { createSpatialIndex, type SpatialIndex } from '@/utils/spatialIndex';
 import { downloadAnnotatedImage } from '@/utils/downloadUtils';
 import * as sessionService from '@/services/sessionService';
 
 export default function ImageAnnotator() {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [spatialIndex, setSpatialIndex] = useState<SpatialIndex | null>(null);
+  const initializationAttemptedRef = useRef(false);
   
   // Persistent settings hook replaces local state
   const {
@@ -59,8 +62,37 @@ export default function ImageAnnotator() {
 
   const { canvasRef, canvasDimensions, restoreCanvasDimensions } = useCanvas(image, markers, hoveredMarkerId, scaleMarkers);
   
+  // Initialize spatial index when canvas dimensions are available
+  useEffect(() => {
+    if (canvasDimensions.width > 0 && canvasDimensions.height > 0) {
+      const newSpatialIndex = createSpatialIndex(canvasDimensions.width, canvasDimensions.height);
+      if (markers.length > 0) {
+        newSpatialIndex.addMarkers(markers);
+      }
+      setSpatialIndex(newSpatialIndex);
+    }
+  }, [canvasDimensions.width, canvasDimensions.height]);
+
+  // Update spatial index when markers change
+  useEffect(() => {
+    if (spatialIndex && markers.length >= 0) {
+      spatialIndex.rebuildIndex(markers);
+    }
+  }, [markers, spatialIndex]);
+  
+  // Update spatial index when canvas dimensions change during resize
+  useEffect(() => {
+    if (spatialIndex && canvasDimensions.width > 0 && canvasDimensions.height > 0) {
+      spatialIndex.updateDimensions(canvasDimensions.width, canvasDimensions.height);
+    }
+  }, [spatialIndex, canvasDimensions.width, canvasDimensions.height]);
+  
   // Initialize session on component mount
   useEffect(() => {
+    // Prevent duplicate initialization (React Strict Mode protection)
+    if (initializationAttemptedRef.current) return;
+    initializationAttemptedRef.current = true;
+    
     const initSession = async () => {
       try {
         const restored = await initializeSession();
@@ -69,8 +101,6 @@ export default function ImageAnnotator() {
           restoreImage(restored.image);
           restoreMarkers(restored.markers);
           restoreCanvasDimensions(restored.canvasDimensions);
-          
-          toast.success(`Restored ${restored.markers.length} markers from previous session`);
         }
       } catch (error: any) {
         console.error('Session initialization failed:', error);
@@ -95,6 +125,16 @@ export default function ImageAnnotator() {
       });
     }
   }, [canvasDimensions, saveCanvasDimensions, image]);
+  
+  // Cleanup mouse move timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (mouseMoveTimeoutRef.current) {
+        clearTimeout(mouseMoveTimeoutRef.current);
+        mouseMoveTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Handle download with loading state
   const handleDownload = async () => {
@@ -127,7 +167,9 @@ export default function ImageAnnotator() {
     if (!coords) return;
 
     // Check if clicking on existing marker to delete it
-    const clickedMarker = getMarkerAtPosition(coords.x, coords.y, markers);
+    const clickedMarker = spatialIndex ? 
+      spatialIndex.getMarkerAtPosition(coords.x, coords.y) : 
+      getMarkerAtPosition(coords.x, coords.y, markers);
     if (clickedMarker) {
       removeMarker(clickedMarker.id);
       return;
@@ -137,29 +179,67 @@ export default function ImageAnnotator() {
     addMarker(coords.x, coords.y, markerSettings);
   };
 
-  const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  // Throttled mouse move handler for better performance
+  const mouseMoveTimeoutRef = useRef<number | null>(null);
+  const lastMouseMoveTimeRef = useRef<number>(0);
+  const MOUSE_MOVE_THROTTLE_MS = 16; // ~60fps (1000ms / 60fps = 16.67ms)
+  
+  const handleCanvasMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!image) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const now = performance.now();
+    const timeSinceLastMove = now - lastMouseMoveTimeRef.current;
+    
+    // Clear existing timeout
+    if (mouseMoveTimeoutRef.current) {
+      clearTimeout(mouseMoveTimeoutRef.current);
+      mouseMoveTimeoutRef.current = null;
+    }
+    
+    const processMouseMove = () => {
+      const canvas = canvasRef.current;
+      if (!canvas || !image) return;
 
-    const coords = getCanvasCoordinates(event, canvas);
-    if (!coords) return;
+      const coords = getCanvasCoordinates(event, canvas);
+      if (!coords) return;
 
-    const marker = getMarkerAtPosition(coords.x, coords.y, markers);
-    setHoveredMarkerId(marker ? marker.id : null);
+      const marker = spatialIndex ? 
+        spatialIndex.getMarkerAtPosition(coords.x, coords.y) : 
+        getMarkerAtPosition(coords.x, coords.y, markers);
+      setHoveredMarkerId(marker ? marker.id : null);
 
-    // Change cursor style
-    canvas.style.cursor = marker ? 'pointer' : 'crosshair';
-  };
+      // Change cursor style
+      canvas.style.cursor = marker ? 'pointer' : 'crosshair';
+      
+      lastMouseMoveTimeRef.current = performance.now();
+    };
+    
+    // If enough time has passed, process immediately
+    if (timeSinceLastMove >= MOUSE_MOVE_THROTTLE_MS) {
+      processMouseMove();
+    } else {
+      // Otherwise, throttle the update
+      const remainingTime = MOUSE_MOVE_THROTTLE_MS - timeSinceLastMove;
+      mouseMoveTimeoutRef.current = window.setTimeout(() => {
+        processMouseMove();
+        mouseMoveTimeoutRef.current = null;
+      }, remainingTime);
+    }
+  }, [image, markers, canvasRef]);
 
-  const handleCanvasMouseLeave = () => {
+  const handleCanvasMouseLeave = useCallback(() => {
+    // Clear any pending mouse move updates
+    if (mouseMoveTimeoutRef.current) {
+      clearTimeout(mouseMoveTimeoutRef.current);
+      mouseMoveTimeoutRef.current = null;
+    }
+    
     setHoveredMarkerId(null);
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.style.cursor = 'crosshair';
     }
-  };
+  }, []);
 
   const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
     if (!image) return;
@@ -173,7 +253,9 @@ export default function ImageAnnotator() {
     if (!coords) return;
 
     // Check if touching existing marker to delete it
-    const touchedMarker = getMarkerAtPosition(coords.x, coords.y, markers);
+    const touchedMarker = spatialIndex ? 
+      spatialIndex.getMarkerAtPosition(coords.x, coords.y) : 
+      getMarkerAtPosition(coords.x, coords.y, markers);
     if (touchedMarker) {
       removeMarker(touchedMarker.id);
       return;

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, memo, useCallback } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -26,7 +26,7 @@ interface ControlPanelProps {
   onResetCount: () => void;
 }
 
-export default function ControlPanel({
+function ControlPanelComponent({
   settings,
   onSettingsChange,
   markerCount,
@@ -39,19 +39,20 @@ export default function ControlPanel({
     count: false,
   });
 
-  const handleSettingChange = (key: keyof MarkerSettings, value: string | number | boolean) => {
+  // Memoized handlers to prevent unnecessary re-renders of child components
+  const handleSettingChange = useCallback((key: keyof MarkerSettings, value: string | number | boolean) => {
     onSettingsChange({
       ...settings,
       [key]: value,
     });
-  };
+  }, [settings, onSettingsChange]);
 
-  const toggleSection = (section: keyof typeof openSections) => {
+  const toggleSection = useCallback((section: keyof typeof openSections) => {
     setOpenSections(prev => ({
       ...prev,
       [section]: !prev[section],
     }));
-  };
+  }, []);
 
   return (
     <Card className="w-80 bg-card/90 backdrop-blur-md border shadow-lg">
@@ -397,3 +398,14 @@ export default function ControlPanel({
     </Card>
   );
 }
+
+// Export memoized component with shallow comparison
+const ControlPanel = memo(ControlPanelComponent, (prevProps, nextProps) => {
+  // Custom comparison to prevent unnecessary re-renders
+  return (
+    prevProps.markerCount === nextProps.markerCount &&
+    prevProps.settings === nextProps.settings
+  );
+});
+
+export default ControlPanel;

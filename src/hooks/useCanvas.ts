@@ -15,8 +15,15 @@ export const useCanvas = (
     height: 600,
   });
   const prevDimensionsRef = useRef<CanvasDimensions | null>(null);
+  
+  // Performance tracking refs
+  const prevMarkersRef = useRef<Marker[]>([]);
+  const prevHoveredIdRef = useRef<string | null>(null);
+  const prevImageRef = useRef<HTMLImageElement | null>(null);
+  const lastRedrawTimeRef = useRef<number>(0);
+  const redrawRequestRef = useRef<number | null>(null);
 
-  // Draw image and all markers on canvas
+  // Optimized canvas redraw with dirty region detection
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -24,7 +31,46 @@ export const useCanvas = (
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
+    const now = performance.now();
+    
+    // Throttle redraws to 60fps maximum
+    const timeSinceLastRedraw = now - lastRedrawTimeRef.current;
+    if (timeSinceLastRedraw < 16) { // ~60fps
+      // Schedule a redraw for later
+      if (!redrawRequestRef.current) {
+        redrawRequestRef.current = requestAnimationFrame(() => {
+          redrawRequestRef.current = null;
+          redrawCanvas();
+        });
+      }
+      return;
+    }
+    
+    // Check if we need to redraw (dirty region detection)
+    const needsFullRedraw = (
+      prevImageRef.current !== image ||
+      prevMarkersRef.current.length !== markers.length ||
+      !prevMarkersRef.current.every((prevMarker, index) => {
+        const currentMarker = markers[index];
+        return currentMarker && 
+               prevMarker.id === currentMarker.id &&
+               prevMarker.x === currentMarker.x &&
+               prevMarker.y === currentMarker.y &&
+               prevMarker.size === currentMarker.size &&
+               prevMarker.color === currentMarker.color;
+      })
+    );
+    
+    const hoveredChanged = prevHoveredIdRef.current !== hoveredMarkerId;
+    
+    if (!needsFullRedraw && !hoveredChanged) {
+      return; // No changes detected, skip redraw
+    }
+    
+    // Update performance tracking
+    lastRedrawTimeRef.current = now;
+    
+    // Clear canvas efficiently
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw image if loaded
@@ -37,6 +83,12 @@ export const useCanvas = (
       const isHovered = marker.id === hoveredMarkerId;
       drawMarker(ctx, marker, isHovered);
     });
+    
+    // Update refs for next comparison
+    prevImageRef.current = image;
+    prevMarkersRef.current = [...markers]; // Shallow copy for comparison
+    prevHoveredIdRef.current = hoveredMarkerId;
+    
   }, [image, markers, hoveredMarkerId]);
 
   // Update canvas dimensions when image changes and trigger redraw
@@ -50,18 +102,45 @@ export const useCanvas = (
     }
   }, [image, redrawCanvas]);
 
-  // Redraw canvas when dependencies change
+  // Intelligent redraw scheduling
   useEffect(() => {
-    redrawCanvas();
+    // Cancel any pending redraw request
+    if (redrawRequestRef.current) {
+      cancelAnimationFrame(redrawRequestRef.current);
+      redrawRequestRef.current = null;
+    }
+    
+    // Schedule redraw using requestAnimationFrame for smooth performance
+    redrawRequestRef.current = requestAnimationFrame(() => {
+      redrawRequestRef.current = null;
+      redrawCanvas();
+    });
+    
+    return () => {
+      if (redrawRequestRef.current) {
+        cancelAnimationFrame(redrawRequestRef.current);
+        redrawRequestRef.current = null;
+      }
+    };
   }, [redrawCanvas]);
 
   // Handle window resize for responsive canvas with debouncing and marker scaling
   useEffect(() => {
-    let timeoutId: number;
+    let timeoutId: number | null = null;
+    let redrawTimeoutId: number | null = null;
     
     const handleResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
+      // Clear existing timers
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      if (redrawTimeoutId) {
+        clearTimeout(redrawTimeoutId);
+        redrawTimeoutId = null;
+      }
+      
+      timeoutId = window.setTimeout(() => {
         if (image && prevDimensionsRef.current && onMarkersScale) {
           const newDimensions = calculateCanvasDimensions(image);
           const oldDimensions = prevDimensionsRef.current;
@@ -81,21 +160,36 @@ export const useCanvas = (
           
           setCanvasDimensions(newDimensions);
           prevDimensionsRef.current = newDimensions;
-          // Trigger redraw after dimensions change
-          setTimeout(redrawCanvas, 10);
+          
+          // Trigger redraw after dimensions change with separate timer
+          redrawTimeoutId = window.setTimeout(redrawCanvas, 10);
         } else if (image) {
           const dimensions = calculateCanvasDimensions(image);
           setCanvasDimensions(dimensions);
           prevDimensionsRef.current = dimensions;
-          setTimeout(redrawCanvas, 10);
+          
+          // Trigger redraw with separate timer
+          redrawTimeoutId = window.setTimeout(redrawCanvas, 10);
         }
+        
+        timeoutId = null;
       }, 100); // Debounce resize events
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize, { passive: true });
+    
     return () => {
       window.removeEventListener('resize', handleResize);
-      clearTimeout(timeoutId);
+      
+      // Clear all timers on cleanup
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      if (redrawTimeoutId) {
+        clearTimeout(redrawTimeoutId);
+        redrawTimeoutId = null;
+      }
     };
   }, [image, redrawCanvas, onMarkersScale]);
 
