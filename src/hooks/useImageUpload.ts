@@ -50,6 +50,11 @@ export const useImageUpload = (onImageLoad?: (image: HTMLImageElement, imageName
     setImage(img);
   }, []);
 
+  // Method to clear the current image
+  const clearImage = useCallback(() => {
+    setImage(null);
+  }, []);
+
   return {
     image,
     fileInputRef,
@@ -58,5 +63,6 @@ export const useImageUpload = (onImageLoad?: (image: HTMLImageElement, imageName
     handleDrop,
     triggerUpload,
     restoreImage,
+    clearImage,
   };
 };

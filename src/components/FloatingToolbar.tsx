@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { Download, Upload, Undo, Trash2, Info, Settings } from 'lucide-react';
+import { Download, Upload, Undo, Trash2, Info, Settings, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -16,6 +16,7 @@ interface FloatingToolbarProps {
   onDownload: () => void;
   onUndo: () => void;
   onClearAll: () => void;
+  onClearCanvas: () => void;
   markerCount: number;
   hasImage: boolean;
   isDownloading: boolean;
@@ -30,6 +31,7 @@ function FloatingToolbarComponent({
   onDownload,
   onUndo,
   onClearAll,
+  onClearCanvas,
   markerCount,
   hasImage,
   isDownloading,
@@ -142,6 +144,16 @@ function FloatingToolbarComponent({
         >
           <Trash2 className="h-4 w-4 mr-2" />
           Clear
+        </Button>
+
+        <Button 
+          onClick={onClearCanvas} 
+          disabled={!hasImage} 
+          variant="ghost" 
+          size="sm"
+        >
+          <X className="h-4 w-4 mr-2" />
+          Clear Canvas
         </Button>
 
         {/* Divider */}

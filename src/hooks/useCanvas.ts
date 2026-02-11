@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { type Marker, type CanvasDimensions } from '@/lib/types';
-import { drawMarker } from '@/utils/canvasUtils';
+import { drawMarker, getMarkerVisualHash } from '@/utils/canvasUtils';
 import { calculateCanvasDimensions } from '@/utils/imageUtils';
 
 export const useCanvas = (
@@ -20,6 +20,7 @@ export const useCanvas = (
   const prevMarkersRef = useRef<Marker[]>([]);
   const prevHoveredIdRef = useRef<string | null>(null);
   const prevImageRef = useRef<HTMLImageElement | null>(null);
+  const prevMarkerHashesRef = useRef<Map<string, string>>(new Map());
   const lastRedrawTimeRef = useRef<number>(0);
   const redrawRequestRef = useRef<number | null>(null);
 
@@ -46,18 +47,14 @@ export const useCanvas = (
       return;
     }
     
-    // Check if we need to redraw (dirty region detection)
+    // Check if we need to redraw (hash-based dirty region detection)
     const needsFullRedraw = (
       prevImageRef.current !== image ||
       prevMarkersRef.current.length !== markers.length ||
-      !prevMarkersRef.current.every((prevMarker, index) => {
-        const currentMarker = markers[index];
-        return currentMarker && 
-               prevMarker.id === currentMarker.id &&
-               prevMarker.x === currentMarker.x &&
-               prevMarker.y === currentMarker.y &&
-               prevMarker.size === currentMarker.size &&
-               prevMarker.color === currentMarker.color;
+      markers.some((marker) => {
+        const prevHash = prevMarkerHashesRef.current.get(marker.id);
+        const currentHash = getMarkerVisualHash(marker);
+        return prevHash !== currentHash;
       })
     );
     
@@ -83,11 +80,17 @@ export const useCanvas = (
       const isHovered = marker.id === hoveredMarkerId;
       drawMarker(ctx, marker, isHovered);
     });
-    
+
     // Update refs for next comparison
     prevImageRef.current = image;
     prevMarkersRef.current = [...markers]; // Shallow copy for comparison
     prevHoveredIdRef.current = hoveredMarkerId;
+
+    // Update hash map for next comparison
+    prevMarkerHashesRef.current.clear();
+    markers.forEach((marker) => {
+      prevMarkerHashesRef.current.set(marker.id, getMarkerVisualHash(marker));
+    });
     
   }, [image, markers, hoveredMarkerId]);
 
@@ -127,17 +130,12 @@ export const useCanvas = (
   // Handle window resize for responsive canvas with debouncing and marker scaling
   useEffect(() => {
     let timeoutId: number | null = null;
-    let redrawTimeoutId: number | null = null;
     
     const handleResize = () => {
-      // Clear existing timers
+      // Clear existing timer
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;
-      }
-      if (redrawTimeoutId) {
-        clearTimeout(redrawTimeoutId);
-        redrawTimeoutId = null;
       }
       
       timeoutId = window.setTimeout(() => {
@@ -161,15 +159,15 @@ export const useCanvas = (
           setCanvasDimensions(newDimensions);
           prevDimensionsRef.current = newDimensions;
           
-          // Trigger redraw after dimensions change with separate timer
-          redrawTimeoutId = window.setTimeout(redrawCanvas, 10);
+          // Trigger immediate redraw after dimensions change
+          requestAnimationFrame(redrawCanvas);
         } else if (image) {
           const dimensions = calculateCanvasDimensions(image);
           setCanvasDimensions(dimensions);
           prevDimensionsRef.current = dimensions;
           
-          // Trigger redraw with separate timer
-          redrawTimeoutId = window.setTimeout(redrawCanvas, 10);
+          // Trigger immediate redraw
+          requestAnimationFrame(redrawCanvas);
         }
         
         timeoutId = null;
@@ -181,14 +179,10 @@ export const useCanvas = (
     return () => {
       window.removeEventListener('resize', handleResize);
       
-      // Clear all timers on cleanup
+      // Clear timer on cleanup
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;
-      }
-      if (redrawTimeoutId) {
-        clearTimeout(redrawTimeoutId);
-        redrawTimeoutId = null;
       }
     };
   }, [image, redrawCanvas, onMarkersScale]);

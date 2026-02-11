@@ -121,3 +121,17 @@ export const getMarkerAtPosition = (x: number, y: number, markers: Marker[]): Ma
   }
   return null;
 };
+
+/**
+ * Creates a fast hash fingerprint of marker visual properties
+ * Used for efficient dirty detection in canvas redrawing
+ * @param marker - The marker to hash
+ * @returns A string hash representing all visual properties
+ */
+export const getMarkerVisualHash = (marker: Marker): string => {
+  // Hash all properties that affect rendering (exclude 'id' since it doesn't affect visuals)
+  return `${marker.x}:${marker.y}:${marker.size}:${marker.color}:${marker.opacity}:` +
+         `${marker.borderSize}:${marker.borderColor}:${marker.shape}:` +
+         `${marker.count ?? ''}:${marker.countColor ?? ''}:${marker.countFontSize ?? ''}:${marker.showCount ? '1' : '0'}:` +
+         `${marker.text ?? ''}:${marker.textColor ?? ''}:${marker.fontSize ?? ''}:${marker.showText ? '1' : '0'}`;
+};

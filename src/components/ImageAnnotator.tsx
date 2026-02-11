@@ -31,6 +31,7 @@ export default function ImageAnnotator() {
     updateMarkers: saveMarkers,
     updateCanvasDimensions: saveCanvasDimensions,
     initializeSession,
+    clearSession,
   } = useSessionPersistence();
 
   // Custom hooks
@@ -45,9 +46,10 @@ export default function ImageAnnotator() {
     resetMarkersOnNewImage,
     scaleMarkers,
     restoreMarkers,
+    updateMarkerCounts,
   } = useMarkers();
 
-  const { image, fileInputRef, handleImageUpload, handleDragOver, handleDrop, triggerUpload, restoreImage } = useImageUpload(
+  const { image, fileInputRef, handleImageUpload, handleDragOver, handleDrop, triggerUpload, restoreImage, clearImage } = useImageUpload(
     async (uploadedImage: HTMLImageElement, imageName: string) => {
       resetMarkersOnNewImage();
       // Create new session when image is uploaded
@@ -153,7 +155,23 @@ export default function ImageAnnotator() {
 
   // Reset count functionality
   const resetCount = () => {
-    setMarkerSettings({ countStartFrom: 1 });
+    const newSettings = { ...markerSettings, countStartFrom: 1 };
+    setMarkerSettings(newSettings);
+    updateMarkerCounts(1, newSettings);
+    toast.success('Count reset');
+  };
+
+  // Clear canvas functionality (remove image and markers)
+  const handleClearCanvas = async () => {
+    clearAllMarkers();
+    clearImage();
+    try {
+      await clearSession();
+      toast.success('Canvas cleared');
+    } catch (error) {
+      console.error('Failed to clear session:', error);
+      toast.error('Failed to clear session');
+    }
   };
 
   // Canvas interaction handlers
@@ -296,6 +314,7 @@ export default function ImageAnnotator() {
           onDownload={handleDownload}
           onUndo={undoLastMarker}
           onClearAll={clearAllMarkers}
+          onClearCanvas={handleClearCanvas}
           markerCount={markers.length}
           hasImage={!!image}
           isDownloading={isDownloading}
@@ -328,13 +347,13 @@ export default function ImageAnnotator() {
               </TooltipContent>
             </Tooltip>
           ) : (
-            <div className="flex items-center justify-center h-64 w-64 rounded-lg text-muted-foreground">
+            <div className="flex items-center justify-center h-64 w-72 rounded-lg text-muted-foreground">
               <div className="text-center">
                 <div className="mx-auto h-12 w-12 mb-2 opacity-50 text-muted-foreground">
-                  <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                  <ImageIcon className="h-12 w-12 text-muted-foreground/40" />
                 </div>
-                <p>No image loaded</p>
-                <p className="text-sm">Use Upload button or drag and drop to start</p>
+                <p className="text-muted-foreground/40">No image loaded</p>
+                <p className="text-sm text-muted-foreground/40">Use Upload button or drag and drop to start</p>
               </div>
             </div>
           )}

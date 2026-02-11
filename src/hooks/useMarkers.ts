@@ -51,6 +51,19 @@ export const useMarkers = () => {
     setHoveredMarkerId(null);
   }, []);
 
+  const updateMarkerCounts = useCallback((countStartFrom: number, settings: MarkerSettings) => {
+    setMarkers((prev) => 
+      prev.map((marker, index) => ({
+        ...marker,
+        ...settings,
+        id: marker.id, // Keep original id
+        x: marker.x,   // Keep original position
+        y: marker.y,   // Keep original position
+        count: settings.showCount ? index + countStartFrom : undefined,
+      }))
+    );
+  }, []);
+
   return {
     markers,
     hoveredMarkerId,
@@ -62,5 +75,6 @@ export const useMarkers = () => {
     resetMarkersOnNewImage,
     scaleMarkers,
     restoreMarkers,
+    updateMarkerCounts,
   };
 };
