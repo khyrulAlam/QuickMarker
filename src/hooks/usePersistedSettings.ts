@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { type MarkerSettings } from '@/lib/types';
 import * as settingsService from '@/services/settingsService';
-import { simpleDebounce } from '@/utils/debounceUtils';
+import { debounce } from '@/utils/debounceUtils';
 
 /**
  * usePersistedSettings Hook
@@ -150,7 +150,7 @@ export const usePersistedSettings = (): UsePersistedSettingsReturn => {
    * Used for real-time settings updates as user interacts with controls
    */
   const debouncedSave = useCallback(
-    simpleDebounce(async (settingsToSave: MarkerSettings) => {
+    debounce(async (settingsToSave: MarkerSettings) => {
       await saveSettings(settingsToSave);
     }, SETTINGS_SAVE_DELAY),
     [saveSettings]

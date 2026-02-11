@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronRight, Palette, Type, Hash, RotateCcw, Settings, Minimize2, Maximize2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Palette, Type, Hash, RotateCcw } from 'lucide-react';
 import { type MarkerSettings } from '@/lib/types';
 import MarkerPreview from './MarkerPreview';
 
@@ -38,9 +38,6 @@ export default function ControlPanel({
     text: false,
     count: false,
   });
-  
-  // State for panel minimization
-  const [isMinimized, setIsMinimized] = useState(false);
 
   const handleSettingChange = (key: keyof MarkerSettings, value: string | number | boolean) => {
     onSettingsChange({
@@ -58,31 +55,7 @@ export default function ControlPanel({
 
   return (
     <Card className="w-80 bg-card/90 backdrop-blur-md border shadow-lg">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            <CardTitle className="text-lg">Marker Settings</CardTitle>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setIsMinimized(!isMinimized)}
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0"
-            >
-              {isMinimized ? (
-                <Maximize2 className="h-3 w-3" />
-              ) : (
-                <Minimize2 className="h-3 w-3" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      
-      {!isMinimized && (
-        <CardContent className="space-y-4">
+      <CardContent className="space-y-4 max-h-[80vh] overflow-y-auto p-6 scrollbar-hide">
         {/* Live Preview */}
         <div>
           <Label className="mb-2 block">Preview</Label>
@@ -420,8 +393,7 @@ export default function ControlPanel({
             )}
           </CollapsibleContent>
         </Collapsible>
-        </CardContent>
-      )}
+      </CardContent>
     </Card>
   );
 }
