@@ -103,7 +103,14 @@ function FloatingToolbarComponent({
         <div className="flex items-center gap-2 px-6 py-2 bg-card/90 backdrop-blur-md border rounded-lg shadow-lg min-w-fit">
         {/* App Title */}
         <div className="flex items-center gap-3 mr-6">
-          <h1 className="text-lg font-semibold whitespace-nowrap">QuickMark</h1>
+          <svg width="160" height="40" viewBox="0 0 320 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="12" y="12" width="56" height="56" rx="14" fill="#2563EB" />
+            <rect x="26" y="26" width="28" height="28" rx="6" fill="#F59E0B" />
+            <rect x="20" y="20" width="56" height="56" rx="14" stroke="#1E40AF" stroke-width="2" opacity="0.5"/>
+            <text x="95" y="50" font-family="Inter, sans-serif" font-size="32" font-weight="600" className="fill-[#111827] dark:fill-[#FFFFFF]">
+              QuickMark
+            </text>
+          </svg>
           <Badge variant="secondary" className="whitespace-nowrap">{markerCountText}</Badge>
         </div>
 
